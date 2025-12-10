@@ -1,0 +1,8 @@
+aiogram~=3.13
+pydantic~=2.7
+pydantic-settings~=2.2
+SQLAlchemy~=2.0
+alembic~=1.13
+httpx~=0.27
+python-dotenv~=1.0
+psycopg2-binary~=2.9
