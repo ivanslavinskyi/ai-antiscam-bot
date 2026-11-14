@@ -1,0 +1,18 @@
+[Unit]
+Description=Local anti-scam database backup with rotation
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=antiscam
+Group=antiscam
+WorkingDirectory=/opt/antiscam-bot/current
+EnvironmentFile=/etc/antiscam/backup.env
+ExecStart=/opt/antiscam-bot/current/.venv/bin/python -m ops.backup
+TimeoutStartSec=6min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/antiscam/backups

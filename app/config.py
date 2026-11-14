@@ -23,7 +23,15 @@ class Settings(BaseSettings):
     admin_chat_ids: str | None = None
 
     # Порог уверенности по умолчанию
-    default_confidence_threshold: float = 0.7
+    default_confidence_threshold: float = 0.8
+
+    # Авто-добавление в whitelist после N сообщений "НЕ СКАМ"
+    # (учитываются LLM=OK и ручные разметки NOT_SCAM)
+    auto_whitelist_threshold: int = 5
+
+    # TTL для уведомлений бота в рабочих группах (предупреждения/мут/бан).
+    # 60 = удалить через 1 минуту. 0 или отрицательное = НЕ удалять.
+    group_notice_ttl_seconds: int = 60
 
     # Режим отладки
     debug: bool = False

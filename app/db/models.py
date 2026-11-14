@@ -36,6 +36,15 @@ class Chat(Base):
         nullable=True,
     )
 
+    # Health-check: деактивация чатов, где бот не может работать
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    deactivated_at: Mapped[Optional[dt.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deactivation_reason: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

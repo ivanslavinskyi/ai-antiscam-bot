@@ -1,0 +1,34 @@
+[Unit]
+Description=AI Anti-Scam Telegram Bot V2
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=antiscam
+Group=antiscam
+WorkingDirectory=/opt/antiscam-bot/current
+EnvironmentFile=/etc/antiscam/bot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/antiscam-bot/current/.venv/bin/python -m app.main
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=40
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/antiscam
+StateDirectory=antiscam
+RuntimeDirectory=antiscam
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryMax=768M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=Independent anti-scam readiness and backup freshness probe
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=antiscam
+Group=antiscam
+WorkingDirectory=/opt/antiscam-bot/current
+EnvironmentFile=/etc/antiscam/health.env
+ExecStart=/opt/antiscam-bot/current/.venv/bin/python -m ops.health
+TimeoutStartSec=20
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

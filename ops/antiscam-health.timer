@@ -1,0 +1,11 @@
+[Unit]
+Description=Anti-scam external heartbeat every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+Persistent=true
+Unit=antiscam-health.service
+
+[Install]
+WantedBy=timers.target

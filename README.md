@@ -1,161 +1,73 @@
-# AI Anti-Scam Bot 🛡️
+# AI Anti-Scam Bot V2
 
-**AI Anti-Scam Bot** is a Telegram bot that automatically detects, deletes, and tracks scam messages in group chats using OpenAI and PostgreSQL.
+Telegram-бот для обнаружения скама с независимой модерацией нескольких рабочих групп. Одна админская группа может управлять несколькими рабочими: срабатывания приходят в общую ленту, а каждое действие относится только к группе карточки. Роли, вайтлист, блэклист, страйки и настройки изолированы по рабочим группам.
 
-It is designed for vulnerable communities (e.g. refugees and migrants) and focuses on transparent moderation and building a quality labeled dataset for future ML models.
+**Статус:** V2 реализована и проверена локально и отдельным тестовым Telegram-ботом. Публикация кода не означает обновление production: боевое переключение и смена модели выполняются отдельно. Результаты проверки кода, 150 автотестов и повторной миграционной репетиции — в [аудите от 14.11.2026](docs/AUDIT_2026-11-14.md); оставшиеся условия выпуска — в [отчёте реализации](docs/IMPLEMENTATION_STATUS.md).
 
----
+## Возможности
 
-## ✨ Features
+- Подключение из личного чата: администратор подаёт заявку, владелец бота рассматривает её перед активацией. Выбор групп кнопками, резервный выбор и ручной ввод ID; возможны разные подтверждающие. Права проверяются заново перед подключением. Технические команды в рабочей группе не нужны; проверочная карточка отправляется только в админскую.
+- Роли владельца, управляющего, модератора и наблюдателя. Актуальные права проверяются при каждом действии; подтверждения персональные, одноразовые и ограничены по времени.
+- Автовайтлист по умолчанию после **5 подходящих публикаций именно в этой группе**. Учитываются `OK` и человеческий `NOT_SCAM`; порог и включение настраиваются. Отзыв доверия начинает новый цикл. Понижение порога не запускает массовую выдачу.
+- Простые настройки с кнопками и пояснениями: режим, автовайтлист, число сообщений до доверия, проверка администраторов. Наказания, уведомления и дополнительные параметры вынесены отдельно. **Бюджеты и расходы доступны только владельцу бота в личном чате**, включая общий дневной лимит и лимиты отдельных групп.
+- Текст, подписи, изображения с OCR на русском, украинском и английском, ссылки, правки и альбомы. Цитируемый текст отделён от собственной публикации; сбои проверки не считаются безопасным ответом.
+- Карточки вероятного скама с уверенностью модели, причиной, текстом, понятной датой и копируемым Telegram ID рядом с именем. Под карточкой — «Не скам», «Бан», «Мут», «Вайтлист», удаление и подробности. Вайтлист и обычные настройки применяются сразу; бан и мут требуют короткого подтверждения. Автовайтлист публикует отдельную карточку в ленте.
+- Поиск участника по имени/username, выбор из списка, переход из карточки и пересылка с открытым автором. Ручной ID остаётся дополнительным способом. История с фильтрами, журнал, импорт вайтлиста и CSV-выгрузки.
+- Устойчивая очередь PostgreSQL: входящие updates и offset фиксируются вместе, задания имеют lease/heartbeat, модельные проверки могут выполняться параллельно. Отдельный worker обслуживает входящие события и кнопки.
+- Результат Telegram хранится отдельно от намерения выполнить действие. Неоднозначные удаления и публикации не повторяются вслепую; старые и чужие баны не отменяются автоматически.
+- Явная миграция старых данных с построчной сверкой. Исходные таблицы и Telegram ID сохраняются; неизвестное происхождение старых ограничений не выдумывается.
+- Ежедневный согласованный бэкап PostgreSQL на VPS: последние семь успешных плановых копий и отдельная копия перед обновлением. Проверка восстановления, контроль свежести и безопасный запуск после восстановления.
 
-- 🤖 LLM-powered scam detection (OpenAI Chat Completions)
-- 🧹 Automatic deletion of scam messages
-- ⚠️ Strike system with warning → mute → ban
-- 👮 Per-chat admin control via dedicated admin chats
-- 🎛️ Inline buttons for “Not scam” / “Confirm scam”
-- 🧾 All inspected messages stored in PostgreSQL
-- 🙅 Skips admins and whitelisted users (their messages are not sent to LLM)
-- 📊 Ready for dataset export and analytics
+## Окружение и запуск
 
----
+Целевое окружение: Linux, Python 3.12, PostgreSQL 17 с актуальными исправлениями, Tesseract с `rus`, `ukr`, `eng`. Рабочий сервис запускается без root. Точные Python-зависимости закреплены в `requirements.txt` и `constraints.txt`.
 
-## 🚀 Tech Stack
-
-- **Python 3.10+**
-- **aiogram 3** (Telegram Bot API)
-- **OpenAI API** (e.g. `gpt-4o-mini`)
-- **PostgreSQL** + SQLAlchemy ORM
-- Environment configuration via **pydantic-settings**
-
----
-
-## 📦 Installation
-
-```bash
-git clone https://github.com/your-username/antiscam-bot.git
-cd antiscam-bot
-
-python3 -m venv venv
-source venv/bin/activate
-
-pip install --upgrade pip
-pip install -r requirements.txt
-````
-
-Make sure PostgreSQL is installed and running.
-
-Create a database and user, for example:
-
-```bash
-sudo -u postgres psql
-
-CREATE USER antiscam_user WITH PASSWORD 'strong_password';
-CREATE DATABASE antiscam_db OWNER antiscam_user ENCODING 'UTF8';
-
-\q
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
----
+Настройки окружения приведены в [.env.example](.env.example). Боевые секреты размещаются вне checkout в `/etc/antiscam/bot.env`, с правами доступа только сервисному пользователю. Локальные политики и роли задаются в БД, а не наследуются из старого глобального `ADMIN_CHAT_IDS`.
 
-## ⚙️ Configuration
+**Не запускать новую точку входа поверх старой БД без миграции.** При запуске таблицы автоматически не создаются: проверяются версия Alembic, подтверждённый импорт и роли. Подготовка и порядок переноса описаны в [инструкции разработки](docs/DEVELOPMENT.md) и [инструкции эксплуатации](ops/README.md).
 
-Create a `.env` file in the project root:
+После успешной миграции и предрелизной проверки:
 
-```env
-# Telegram bot
-TELEGRAM_BOT_TOKEN=1234567890:AA...
-
-# OpenAI
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini-2024-07-18
-
-# PostgreSQL
-DB_URL=postgresql+psycopg2://antiscam_user:strong_password@localhost:5432/antiscam_db
-
-# Optional: global admin chats (comma-separated chat IDs)
-# Example: ADMIN_CHAT_IDS=-1001111111111,-1002222222222
-ADMIN_CHAT_IDS=
-
-# Confidence threshold for automatic scam actions
-DEFAULT_CONFIDENCE_THRESHOLD=0.85
-
-# Debug logging
-DEBUG=true
+```sh
+.venv/bin/python -m app.v2.preflight --telegram
+.venv/bin/python -m app.main
 ```
 
----
+`--telegram` выполняет чтение идентичности и прав, без тестовых публикаций и без запуска polling. Единственный работающий receiver с одним токеном обязателен. Предрелизная проверка дополнительно требует целевую Linux-систему и непривилегированного пользователя; её успешность на Windows не заявляется.
 
-## 🧪 Run the Bot
+## Работа в Telegram
 
-From the project directory:
+В личке — `/start`: владелец видит группы, заявки, запросы управляющих, состояние и финансы; администратор — свои заявки и подключение. В админской группе — `/as`: общая панель модерации с кнопками «Неразобранные», «История», «Участники», «Вайтлист», «Группы и настройки» и «Ещё». Для настроек выбирается рабочая группа; если она одна, лишний выбор пропускается. Подробные шаги — в [инструкции модератора](docs/MODERATOR_GUIDE.md).
 
-```bash
-source venv/bin/activate
-python -m app.main
-```
+| Режим | Поведение |
+| --- | --- |
+| 👁 Наблюдение | Проверки и карточки работают, новых автоматических наказаний нет; прогресс доверия учитывается |
+| 🛡 Боевой | Выполняются разрешённые автоматические действия по правилам этой группы |
+| ⏸ Пауза | Новые проверки и автоматические наказания остановлены; история и ограничения сохраняются |
 
-On first run, the bot will:
+Уже отправленное Telegram действие может завершиться после смены режима. Ручные действия модератора доступны независимо от автоматического режима. Повторное подключение начинается с наблюдения и сохраняет историю, списки и ограничения.
 
-* connect to PostgreSQL,
-* create tables if they don’t exist,
-* start polling Telegram.
+Вайтлист не снимает бан или мут. Разбан не выдаёт доверие и не обнуляет страйки. «Не скам» отменяет вклад конкретного случая, а разбан и размут выполняются отдельно. Блэклист — отдельный локальный запрет. Изменения записываются в журнал с автором.
 
----
+## Код и проверки
 
-## 💬 Telegram Setup
+| Путь | Назначение |
+| --- | --- |
+| `app/v2/` | Оперативный код V2 |
+| `app/main.py` | Единственная точка входа V2 |
+| `migrations/` | Alembic и зафиксированный DDL |
+| `tests/` | Изоляция, конкурентность, восстановление заданий и интерфейс |
+| `tools/` | Синтетическая нагрузка и офлайн-оценка модели |
+| `ops/` | Systemd, резервное копирование, восстановление и независимое здоровье |
+| `app/handlers/` | Сохранённый старый код для сравнения; новая точка входа его не запускает |
 
-1. **Working chats (protected groups)**
+[Разработка и локальные тесты](docs/DEVELOPMENT.md) выполняются на отдельной `antiscam_test_*` базе localhost. Тестовые фикстуры очищают именно её. Тесты не используют боевой `.env`, Telegram/OpenAI-токены и не отправляют историю внешним API.
 
-   * Add the bot to the group/supergroup.
-   * Promote it to **admin** with permissions to delete messages and restrict members.
+Смена модели — отдельный выпускной шаг после независимой разметки и проверки качества, стоимости и доступности в аккаунте. Наличие адаптера модели в коде не означает её принятия для production.
 
-2. **Admin chats**
-
-   * Create a separate admin group for moderators.
-   * Add the bot and human admins there.
-
-3. **Link working chat to admin chat**
-   In the working chat (as a Telegram admin):
-
-   ```text
-   /as_set_admin_chat <admin_chat_id>
-   ```
-
-   After linking, scam events from that chat will be reported to the selected admin chat as rich cards with inline buttons.
-
----
-
-## 🛠️ Admin Commands
-
-* `/as_set_admin_chat <id>` — link this chat to an admin chat
-* `/as_status` — show status and basic stats for the current chat
-* `/as_stats` — aggregated stats in admin chats (scams, labels, top offenders)
-* `/as_recent [N]` — show recent detected scam messages
-* `/help` or `/as_help` — show help and list of commands
-
-In working chats, bot commands are restricted to Telegram admins of that chat.
-
----
-
-## 📊 Data & Dataset
-
-All messages that are sent to the LLM are stored in the database with:
-
-* raw text,
-* model label, category, confidence,
-* explanation and raw JSON,
-* optional human label and who set it,
-* per-chat user strike counts.
-
-This makes it easy to:
-
-* analyze scam patterns,
-* export labeled data for ML,
-* build future commercial or research products on top of the dataset.
-
----
-
-## 📄 License
-
-MIT — open to use and contribution.
-Maintained by **Ivan Slavinskyi**.
+ТЗ, дизайн-атлас, боевой ранбук, дампы, скриншоты, локальные данные и секреты исключены из Git. Публичная документация содержит инструкции и результаты без конфигурации конкретного VPS. Локальные бэкапы не защищают от потери самого диска VPS; внешнее хранилище можно подключить отдельно, но оно не требуется для согласованного варианта.
