@@ -1,0 +1,82 @@
+name: antiscam-v2
+
+services:
+  db:
+    image: postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536
+    pull_policy: never
+    restart: unless-stopped
+    env_file:
+      - ${ANTISCAM_DB_ENV_FILE:-/etc/antiscam-v2/postgres.env}
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-local=peer --auth-host=scram-sha-256
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - effective_cache_size=128MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - autovacuum_work_mem=16MB
+      - -c
+      - max_connections=30
+      - -c
+      - max_wal_size=256MB
+      - -c
+      - min_wal_size=80MB
+      - -c
+      - max_parallel_workers_per_gather=0
+      - -c
+      - max_parallel_maintenance_workers=0
+      - -c
+      - log_statement=none
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    shm_size: 64m
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+      - /var/run/postgresql:rw,noexec,nosuid,nodev,size=16m,mode=3775
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+    stop_signal: SIGINT
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres, -d, postgres]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - database
+
+volumes:
+  pgdata:
+
+networks:
+  database:
+    internal: true

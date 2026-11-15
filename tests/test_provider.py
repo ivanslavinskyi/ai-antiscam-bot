@@ -1,9 +1,11 @@
+import json
+
 import httpx
 import pytest
 from pydantic import ValidationError
 
 from app.v2.config import Settings
-from app.v2.llm import Classifier, CheckError, RetryLater
+from app.v2.llm import Classifier, CheckError, RetryLater, cost
 from tools.evaluate_models import metrics, wilson
 
 
@@ -104,3 +106,90 @@ def test_configuration_error_does_not_echo_secrets():
             worker_count="fixture-secret",
         )
     assert "fixture-secret" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "details,expected",
+    [
+        ({"cache_write_tokens": 0}, 0.00015),
+        ({"cache_write_tokens": 400}, 0.00016),
+        ({"cache_write_tokens": 1000}, 0.000175),
+        ({"cache_write_tokens": 400, "cached_tokens": 500}, 0.00016),
+        (None, 0.000175),
+        ({}, 0.000175),
+        ([], 0.000175),
+        ({"cache_write_tokens": -1}, 0.000175),
+        ({"cache_write_tokens": 1001}, 0.000175),
+        ({"cache_write_tokens": True}, 0.000175),
+        ({"cache_write_tokens": "400"}, 0.000175),
+    ],
+)
+async def test_luna_cache_write_accounting_and_reservation(details, expected):
+    budget = RecordingBudget()
+
+    def respond(request):
+        body = json.loads(request.content)
+        assert body["model"] == "gpt-6-luna"
+        assert body["reasoning_effort"] == "none"
+        # This tariff is for the default 30-minute cache, not extended retention.
+        assert "prompt_cache_options" not in body
+        return httpx.Response(
+            200,
+            json={
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 100,
+                    "prompt_tokens_details": details,
+                },
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "label": "OK",
+                                    "category": "other",
+                                    "confidence": 0.9,
+                                    "reason": "fixture",
+                                }
+                            )
+                        },
+                    }
+                ],
+            },
+        )
+
+    classifier = Classifier(
+        Settings(
+            _env_file=None,
+            db_url="postgresql://unused",
+            openai_api_key="test-fixture",
+            openai_model="gpt-6-luna",
+            max_input_tokens=16000,
+        ),
+        budget,
+        httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    )
+    try:
+        verdict, meta = await classifier.classify(
+            1,
+            "luna-write",
+            {
+                "own_publication": ["fixture " * 1000],
+            },
+        )
+    finally:
+        await classifier.close()
+    assert verdict.label == "OK"
+    assert meta["cost_usd"] == pytest.approx(expected)
+    assert budget.settlements[0][1] == pytest.approx(expected)
+    # Even if every input token requires a cache write, reservation covers it.
+    assert budget.reservations[0][2] >= (8000 * 0.125 + 512 * 0.50) / 1_000_000
+    assert budget.reservations[0][2] > expected
+
+
+def test_legacy_model_cost_is_unchanged():
+    for writes in (None, 0, 1000):
+        assert cost(
+            "gpt-4o-mini", 1000, 100, cache_write_tokens=writes
+        ) == pytest.approx(0.00021)

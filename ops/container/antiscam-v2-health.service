@@ -1,0 +1,21 @@
+[Unit]
+Description=AntiScam V2 independent database queue receiver and backup check
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/etc/antiscam-v2/ALLOW_V2_START
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/antiscam-bot/deploy
+ExecStart=/usr/local/libexec/antiscam-v2-control health
+ExecStopPost=-/usr/local/libexec/antiscam-v2-control stop-health
+TimeoutStartSec=40
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+MemoryMax=192M
+TasksMax=96

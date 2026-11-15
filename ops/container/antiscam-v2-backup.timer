@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AntiScam V2 local database backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+Unit=antiscam-v2-backup.service
+
+[Install]
+WantedBy=timers.target

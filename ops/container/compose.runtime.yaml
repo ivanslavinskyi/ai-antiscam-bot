@@ -1,0 +1,80 @@
+name: antiscam-v2-app
+
+x-runtime: &runtime
+  image: ${ANTISCAM_V2_IMAGE:?Set an explicitly verified runtime image}
+  pull_policy: never
+  user: "10001:10001"
+  init: true
+  read_only: true
+  restart: "no"
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 96
+  stop_grace_period: 45s
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  bot:
+    <<: *runtime
+    container_name: antiscam-v2-app-bot
+    command: [python, -m, app.main]
+    env_file:
+      - ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/bot.env
+      - ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/runtime-db.env
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 1.0
+    networks: [database, egress]
+
+  backup:
+    <<: *runtime
+    profiles: [operations]
+    command: [python, -m, ops.backup]
+    env_file:
+      - ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/backup.env
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.5
+    networks: [database]
+    volumes:
+      - type: bind
+        source: ${ANTISCAM_V2_BACKUP_DIR:-/var/lib/antiscam-v2/backups}
+        target: /var/lib/antiscam/backups
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/pg_service.conf
+        target: /run/antiscam/pg_service.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/pgpass
+        target: /run/antiscam/pgpass
+        read_only: true
+        bind: {create_host_path: false}
+
+  health:
+    <<: *runtime
+    profiles: [operations]
+    command: [python, -m, ops.health]
+    env_file:
+      - ${ANTISCAM_V2_CONFIG_DIR:-/etc/antiscam-v2/service-config}/health.env
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.5
+    networks: [database]
+    volumes:
+      - type: bind
+        source: ${ANTISCAM_V2_BACKUP_DIR:-/var/lib/antiscam-v2/backups}
+        target: /var/lib/antiscam/backups
+        read_only: true
+        bind: {create_host_path: false}
+
+networks:
+  database:
+    external: true
+    name: ${ANTISCAM_V2_DATABASE_NETWORK:-antiscam-v2_database}
+  egress: {}

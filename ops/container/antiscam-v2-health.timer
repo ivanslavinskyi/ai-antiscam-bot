@@ -1,0 +1,11 @@
+[Unit]
+Description=AntiScam V2 check every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=antiscam-v2-health.service
+
+[Install]
+WantedBy=timers.target

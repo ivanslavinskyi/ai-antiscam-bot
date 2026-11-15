@@ -1,0 +1,21 @@
+[Unit]
+Description=AntiScam V2 local database backup (keep seven)
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/etc/antiscam-v2/ALLOW_V2_START
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/antiscam-bot/deploy
+ExecStart=/usr/local/libexec/antiscam-v2-control backup
+ExecStopPost=-/usr/local/libexec/antiscam-v2-control stop-backup
+TimeoutStartSec=6min
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+MemoryMax=192M
+TasksMax=96

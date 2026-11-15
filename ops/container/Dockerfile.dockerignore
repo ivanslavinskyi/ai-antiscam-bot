@@ -1,0 +1,18 @@
+# Allowlist: secrets, database dumps, .git and local-data never enter the context.
+**
+!requirements.txt
+!constraints.txt
+!alembic.ini
+!app/
+!app/**
+!migrations/
+!migrations/**
+!ops/
+!ops/*.py
+!ops/container/
+!ops/container/Dockerfile
+!ops/container/Dockerfile.dockerignore
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*

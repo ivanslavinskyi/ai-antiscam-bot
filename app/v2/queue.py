@@ -48,7 +48,11 @@ async def persist_updates(engine, bot_id, updates):
     async with engine.begin() as conn:
         accepted_new = False
         for incoming in updates:
-            payload = incoming.model_dump(mode="json", exclude_none=True)
+            # Persist only fields received from Telegram. Nested aiogram objects
+            # (e.g. LinkPreviewOptions) add non-JSON Default sentinels otherwise.
+            payload = incoming.model_dump(
+                mode="json", exclude_none=True, exclude_unset=True
+            )
             publication = incoming.message or incoming.edited_message
             gid = None
             admin_context = False

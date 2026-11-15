@@ -1,9 +1,13 @@
 import uuid
+import shutil
+import subprocess
 
 import psycopg
+import pytest
 from sqlalchemy.engine import make_url
 
 from ops.db_manifest import sequence_issues
+from ops.restore_drill import restore_environment
 
 
 def connect(test_url):
@@ -15,6 +19,35 @@ def connect(test_url):
         password=url.password,
         dbname=url.database,
     )
+
+
+@pytest.mark.skipif(not shutil.which("psql"), reason="Requires PostgreSQL CLI client")
+def test_restore_ignores_inherited_backup_service(test_url, monkeypatch, tmp_path):
+    service = tmp_path / "pg_service.conf"
+    service.write_text(
+        "[backup]\nhost=127.0.0.1\nport=1\nuser=wrong_backup_user\ndbname=wrong_backup_db\n"
+    )
+    monkeypatch.setenv("PGSERVICE", "backup")
+    monkeypatch.setenv("PGSERVICEFILE", str(service))
+    monkeypatch.setenv("PGCONNECT_TIMEOUT", "2")
+    url = make_url(test_url)
+    result = subprocess.run(
+        [
+            "psql",
+            "-XAt",
+            "--no-password",
+            "--dbname",
+            url.database,
+            "-c",
+            "SELECT current_database(), current_user",
+        ],
+        env=restore_environment(url),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"{url.database}|{url.username}"
 
 
 def test_explicit_telegram_and_picker_ids_do_not_fail_restore(test_url, clean_db):

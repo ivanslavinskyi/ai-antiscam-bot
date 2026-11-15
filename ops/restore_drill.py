@@ -13,6 +13,22 @@ from ops.db_manifest import database_manifest, sequence_issues
 from ops.backup import checksum, run
 
 
+def restore_environment(url):
+    # A backup service can override PGHOST/PGPORT/PGUSER inherited by libpq.
+    # Restore must use the same explicit target as the empty-database check.
+    environment = dict(os.environ)
+    environment.pop("PGSERVICE", None)
+    environment.pop("PGSERVICEFILE", None)
+    environment.update(
+        PGHOST=url.host or "localhost",
+        PGPORT=str(url.port or 5432),
+        PGUSER=url.username or "",
+        PGPASSWORD=url.password or "",
+        PGDATABASE=url.database,
+    )
+    return environment
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
@@ -53,14 +69,7 @@ def main():
             raise RuntimeError(
                 "Restore target is not empty; no existing database is overwritten"
             )
-    environment = dict(
-        os.environ,
-        PGHOST=url.host or "localhost",
-        PGPORT=str(url.port or 5432),
-        PGUSER=url.username or "",
-        PGPASSWORD=url.password or "",
-        PGDATABASE=url.database,
-    )
+    environment = restore_environment(url)
     os.umask(0o077)
     with tempfile.TemporaryDirectory(prefix="antiscam-restore-") as temporary:
         dump = Path(temporary) / "verified.dump" if encrypted else args.archive
