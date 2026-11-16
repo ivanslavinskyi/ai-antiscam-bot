@@ -310,6 +310,11 @@ class Pipeline:
                     )
                 )
             ).scalar_one()
+        # A current local trust grant already exempts this publication. Do not
+        # let an unnecessary Telegram membership request turn it into an error.
+        # Explicit local deny still takes precedence when resolving lists above.
+        if skip == "trusted":
+            return await self.finish(inc, version, settings, rows, skip=skip)
         if policy.exempt_admins and telegram_user:
             try:
                 member = await self.bot.get_chat_member(tgchat, telegram_user)

@@ -328,13 +328,9 @@ class Onboarding:
                 raise Conflict("Заявка изменилась. Откройте её заново.")
 
     async def configure(self, actor, rid, version, changes):
-        allowed = {
-            "auto_whitelist_enabled",
-            "auto_whitelist_threshold",
-            "exempt_admins",
-        }
+        allowed = {"exempt_admins"}
         if not changes or set(changes) - allowed:
-            raise Denied("В заявке доступны только начальные настройки доверия.")
+            raise Denied("Эта настройка недоступна на этапе подключения.")
         async with self.engine.begin() as conn:
             row = (
                 (

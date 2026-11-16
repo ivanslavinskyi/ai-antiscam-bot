@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery
 from sqlalchemy import select, func
 
 from app.v2 import tables as t
-from app.v2.domain import Denied, GroupScope, Role
+from app.v2.domain import Denied, GroupScope, Role, Policy
 from app.v2.onboarding import Onboarding
 from app.v2.operator import Operator
 from app.v2.state import ensure_member, ensure_user
@@ -260,8 +260,60 @@ async def test_onboarding_names_and_completed_view_have_no_connect_button(
     assert "Selected group (-3001)" in sent[2]
     assert "Selected group (-3002)" in sent[2]
     assert "Подключена" in sent[2]
+    assert "вайтлист" not in sent[2].lower()
     assert not any(
         b.callback_data.startswith("v:connect:")
         for row in sent[3]["reply_markup"].inline_keyboard
         for b in row
     )
+
+
+@pytest.mark.parametrize(
+    "initial_policy",
+    [{}, {"auto_whitelist_enabled": False, "auto_whitelist_threshold": 17}],
+)
+async def test_onboarding_hides_trust_and_old_buttons_preserve_policy(
+    db, bot, auth, initial_policy
+):
+    onboarding = Onboarding(db, bot, auth)
+    rid = await onboarding.create(111)
+    async with db.begin() as conn:
+        await conn.execute(
+            t.onboarding.update()
+            .where(t.onboarding.c.id == rid)
+            .values(initial_policy=initial_policy)
+        )
+    ui = UI(db, bot, auth, Operator(db, auth), onboarding)
+    before = await onboarding.get(111, rid)
+    version = str(before["version"])
+    await ui.show_onboarding(111, rid)
+    await ui.design_private_callback(111, 111, ["v", "apsettings", rid.hex, version])
+    for sent in [c for c in bot.calls if c[0] == "send_message"]:
+        assert "вайтлист" not in sent[2].lower()
+        assert "довер" not in sent[2].lower()
+        buttons = [b for row in sent[3]["reply_markup"].inline_keyboard for b in row]
+        assert not any("вайтлист" in b.text.lower() for b in buttons)
+        assert not any(
+            b.callback_data.startswith("v:apvalue:")
+            and not b.callback_data.endswith(":admins")
+            for b in buttons
+        )
+    for old_value in ("toggle", "3", "5", "10"):
+        await ui.design_private_callback(
+            111, 111, ["v", "apvalue", rid.hex, version, old_value]
+        )
+    after = await onboarding.get(111, rid)
+    assert after["initial_policy"] == before["initial_policy"]
+    assert after["version"] == before["version"]
+    with pytest.raises(Denied):
+        await onboarding.configure(
+            111, rid, int(version), {"auto_whitelist_threshold": 3}
+        )
+    await ui.design_private_callback(
+        111, 111, ["v", "apvalue", rid.hex, version, "admins"]
+    )
+    after = await onboarding.get(111, rid)
+    original_policy = Policy.model_validate(before["initial_policy"]).model_dump()
+    assert after["initial_policy"]["exempt_admins"] != original_policy["exempt_admins"]
+    for key in ("auto_whitelist_threshold", "auto_whitelist_enabled"):
+        assert after["initial_policy"][key] == original_policy[key]

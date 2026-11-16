@@ -93,7 +93,6 @@ class DesignControls(TeamControls, FeedControls, GroupControls):
                     names[side] = f"{chat.title or 'Группа'} ({chat.id})"
                 except Exception:
                     names[side] = "название недоступно; нажмите обновить"
-        policy = Policy.model_validate(row["initial_policy"])
         async with self.engine.connect() as conn:
             manager_name = (
                 await conn.execute(
@@ -111,7 +110,7 @@ class DesignControls(TeamControls, FeedControls, GroupControls):
         text = (
             f"🔗 Подключение · {'Черновик' if row['state'] == 'pending' else label(row['state'])}\n👥 Рабочая: {names['work']}\n"
             f"🧑‍💼 Админская: {names['admin']}\nУправляющий: {manager_name}\n"
-            f"👁 Старт: наблюдение\n🤍 Автовайтлист: {'включён' if policy.auto_whitelist_enabled else 'выключен'}, после {policy.auto_whitelist_threshold} сообщений.\n"
+            "👁 Старт: наблюдение\n"
             "Команды в рабочей группе не нужны."
         )
         if row["review_note"]:
@@ -409,13 +408,6 @@ class DesignControls(TeamControls, FeedControls, GroupControls):
             rows = [
                 [
                     (
-                        f"Автовайтлист: {'вкл' if policy.auto_whitelist_enabled else 'выкл'}",
-                        f"v:apvalue:{parts[2]}:{parts[3]}:toggle",
-                    )
-                ],
-                [(str(n), f"v:apvalue:{parts[2]}:{parts[3]}:{n}") for n in (3, 5, 10)],
-                [
-                    (
                         f"Проверять администраторов: {'нет' if policy.exempt_admins else 'да'}",
                         f"v:apvalue:{parts[2]}:{parts[3]}:admins",
                     )
@@ -424,20 +416,17 @@ class DesignControls(TeamControls, FeedControls, GroupControls):
             ]
             await self.send(
                 actor,
-                "⚙️ Начальные настройки. Выдача доверия только в выбранной рабочей группе.",
+                "⚙️ Начальные настройки. Остальные параметры доступны после подключения в админской группе.",
                 keyboard(rows),
             )
         elif cmd == "apvalue":
             row = await self.onboarding.get(actor, parts[2])
             policy = Policy.model_validate(row["initial_policy"])
             value = parts[4]
-            changes = (
-                {"auto_whitelist_enabled": not policy.auto_whitelist_enabled}
-                if value == "toggle"
-                else {"exempt_admins": not policy.exempt_admins}
-                if value == "admins"
-                else {"auto_whitelist_threshold": int(value)}
-            )
+            if value != "admins":
+                await self.show_onboarding(actor, parts[2])
+                return True
+            changes = {"exempt_admins": not policy.exempt_admins}
             await self.onboarding.configure(actor, parts[2], int(parts[3]), changes)
             await self.show_onboarding(actor, parts[2])
         return True
