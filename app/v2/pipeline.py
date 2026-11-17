@@ -330,10 +330,22 @@ class Pipeline:
         if denied:
             # Blacklist is explicit local deny, separately recorded from model classification.
             return await self.finish(inc, version, settings, rows, skip="blacklisted")
-        own, quoted, links = [], [], []
+        own, quoted, links, contexts = [], [], [], []
         try:
             for row in rows:
                 content = row["content"]
+                context = content.get("reply_context")
+                if context and context.get("incomplete"):
+                    context = await self.restore_local_context(inc, tgchat, context)
+                    content = {**content, "reply_context": context}
+                    async with self.engine.begin() as conn:
+                        await conn.execute(
+                            t.revisions.update()
+                            .where(t.revisions.c.id == row["id"])
+                            .values(content=content)
+                        )
+                    if context["incomplete"]:
+                        raise CheckError("reply_context_incomplete")
                 if content.get("unsupported"):
                     raise CheckError("unsupported_media")
                 ocr = row["ocr_text"]
@@ -348,7 +360,16 @@ class Pipeline:
                             .values(ocr_text=ocr)
                         )
                 own.append(normalize(row["text"] + "\n" + ocr))
-                quoted.append(content.get("quoted_context", ""))
+                quoted.append(content.get("quoted_context", "") if not context else "")
+                if context or content.get("forwarded"):
+                    contexts.append(
+                        {
+                            "publication_index": len(own) - 1,
+                            "forwarded": content.get("forwarded", False),
+                            "forward_source": content.get("forward_source"),
+                            "reply": context,
+                        }
+                    )
                 links.extend(content.get("links", []))
             if not any(s.strip() for s in own) and not links:
                 raise CheckError("no_readable_content")
@@ -359,6 +380,7 @@ class Pipeline:
                     "own_publication": own,
                     "links": links,
                     "quoted_context": quoted,
+                    "publication_context": contexts,
                     "community_context": policy.context,
                 },
                 policy.daily_budget_usd,
@@ -377,6 +399,67 @@ class Pipeline:
                 inc, version, settings, rows, error="media_or_provider_error"
             )
         await self.finish(inc, version, settings, rows, verdict=verdict, meta=meta)
+
+    async def restore_local_context(self, inc, tgchat, context):
+        """Use only an unedited, already known source in this same work group."""
+        source = context.get("source", {})
+        if (
+            context.get("truncated")
+            or source.get("chat_id") != tgchat
+            or not source.get("message_id")
+        ):
+            return context
+        async with self.engine.connect() as conn:
+            saved = (
+                (
+                    await conn.execute(
+                        select(
+                            t.revisions.c.text,
+                            t.revisions.c.ocr_text,
+                            t.revisions.c.content,
+                        )
+                        .join(
+                            t.items,
+                            (t.items.c.id == t.revisions.c.item_id)
+                            & (t.items.c.revision == t.revisions.c.revision),
+                        )
+                        .where(
+                            t.items.c.chat_id == inc["chat_id"],
+                            t.items.c.telegram_message_id == source["message_id"],
+                            t.items.c.incident_key != inc["incident_key"],
+                            t.items.c.revision == 1,
+                            t.items.c.first_received_at <= inc["created_at"],
+                        )
+                    )
+                )
+                .mappings()
+                .first()
+            )
+        if not saved:
+            return context
+        full = (saved["text"] + "\n" + saved["ocr_text"]).strip()
+        quote = context.get("quote", "")
+        links = saved["content"].get("links", [])
+        unread = saved["content"].get("unsupported") or (
+            saved["content"].get("image_file_id") and not saved["ocr_text"]
+        )
+        if (
+            not full
+            or len(full) > 2000
+            or unread
+            or (quote and quote not in full)
+            or len(links) > 10
+            or any(len(x) > 1000 for x in links)
+        ):
+            return context
+        return {
+            **context,
+            "text": full,
+            "links": links,
+            "coverage": "stored_local",
+            "incomplete": False,
+            "media_unread": False,
+        }
 
     async def finish(
         self,
@@ -442,6 +525,8 @@ class Pipeline:
                 status=status, complete=not bool(error or skip), updated_at=now()
             )
             if verdict:
+                if verdict.label == "REVIEW":
+                    values.update(status="review", complete=False)
                 values.update(
                     model_label=verdict.label,
                     category=verdict.category,

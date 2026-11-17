@@ -123,7 +123,11 @@ class Delivery:
                 texts = (
                     (
                         await conn.execute(
-                            select(t.revisions.c.text, t.revisions.c.ocr_text)
+                            select(
+                                t.revisions.c.text,
+                                t.revisions.c.ocr_text,
+                                t.revisions.c.content,
+                            )
                             .join(
                                 t.items,
                                 (t.items.c.id == t.revisions.c.item_id)

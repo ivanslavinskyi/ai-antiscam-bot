@@ -7,6 +7,7 @@ from aiogram.types import MessageEntity
 
 from app.v2.presentation import label, person
 from app.v2.domain import Policy
+from app.v2.message_context import context_lines
 
 
 def card_datetime(value, timezone_name):
@@ -65,6 +66,8 @@ def incident_text(row, title=None):
         )
     elif row.get("status") == "error":
         heading = "⚠️ Не удалось проверить сообщение"
+    elif row.get("model_label") == "REVIEW":
+        heading = "⚠️ Недостаточно контекста для проверки"
     else:
         heading = "⚠️ Обнаружен вероятный скам"
     lines = [
@@ -79,9 +82,21 @@ def incident_text(row, title=None):
     for item in row.get("texts", [])[:2]:
         if item.get("text"):
             lines.append(
-                item["text"]
+                (
+                    "💬 Комментарий: "
+                    if (item.get("content") or {}).get("reply_context")
+                    else ""
+                )
+                + item["text"]
                 .encode("utf-16-le")[:1000]
                 .decode("utf-16-le", errors="ignore")
+            )
+        context = "\n".join(context_lines(item.get("content") or {}))
+        if context:
+            encoded = context.encode("utf-16-le")
+            lines.append(
+                encoded[:1000].decode("utf-16-le", errors="ignore")
+                + ("…" if len(encoded) > 1000 else "")
             )
         if item.get("ocr_text"):
             lines.append(
@@ -94,7 +109,9 @@ def incident_text(row, title=None):
     lines += [
         "",
         "📝 Причина: " + label(row.get("reason"))[:400],
-        "📊 Уверенность модели: "
+        "📊 Проверка моделью: данных недостаточно"
+        if row.get("model_label") == "REVIEW"
+        else "📊 Уверенность модели: "
         + (f"{confidence:.0%}" if confidence is not None else "не указана"),
     ]
     if row.get("human_label"):

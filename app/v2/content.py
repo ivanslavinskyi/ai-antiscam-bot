@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from app.v2.llm import CheckError
+from app.v2.message_context import reply_context, source_info, text_links
 
 
 def normalize(value):
@@ -22,22 +23,9 @@ def normalize(value):
 def extract(message):
     own = message.text or message.caption or ""
     entities = message.entities or message.caption_entities or []
-    links = []
-    raw = own.encode("utf-16-le")
-    for entity in entities:
-        if entity.type == "text_link" and entity.url:
-            links.append(entity.url)
-        elif entity.type in {"url", "email"}:
-            links.append(
-                raw[entity.offset * 2 : (entity.offset + entity.length) * 2].decode(
-                    "utf-16-le"
-                )
-            )
-    quoted = ""
-    if message.reply_to_message:
-        quoted = message.reply_to_message.text or message.reply_to_message.caption or ""
-    if message.quote:
-        quoted = message.quote.text
+    links = text_links(own, entities)
+    context = reply_context(message)
+    quoted = (context["text"] or context["quote"]) if context else ""
     photo = message.photo[-1] if message.photo else None
     unsupported = any(
         getattr(message, name, None) is not None
@@ -65,7 +53,11 @@ def extract(message):
         ],
         "links": links,
         "quoted_context": quoted[:2000],
+        "reply_context": context,
         "forwarded": message.forward_origin is not None,
+        "forward_source": source_info(message.forward_origin)
+        if message.forward_origin
+        else None,
         "image_file_id": photo.file_id if photo else None,
         "image_size": photo.file_size if photo else None,
         "image_is_document": bool(photo and message.document),
