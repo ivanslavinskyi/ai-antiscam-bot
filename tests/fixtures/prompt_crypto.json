@@ -1,0 +1,167 @@
+[
+  {
+    "name": "buy_usdt_0",
+    "text": "Куплю у вас USDT",
+    "expected": "SCAM"
+  },
+  {
+    "name": "buy_usdt_1",
+    "text": "Куплю у вас USDT",
+    "expected": "SCAM"
+  },
+  {
+    "name": "buy_usdt_2",
+    "text": "Куплю у вас USDT",
+    "expected": "SCAM"
+  },
+  {
+    "name": "sell_tether",
+    "text": "Продам тезер",
+    "expected": "SCAM"
+  },
+  {
+    "name": "buy_uk",
+    "text": "Куплю у вас USDT, хто продає?",
+    "expected": "SCAM"
+  },
+  {
+    "name": "exchange",
+    "text": "Обменяю USDT на наличные франки",
+    "expected": "SCAM"
+  },
+  {
+    "name": "question_offer",
+    "text": "Кто может обменять мне USDT на наличные?",
+    "expected": "SCAM"
+  },
+  {
+    "name": "btc",
+    "text": "Продам биткоин, пишите",
+    "expected": "SCAM"
+  },
+  {
+    "name": "eth",
+    "text": "Куплю ETH",
+    "expected": "SCAM"
+  },
+  {
+    "name": "tether_ru",
+    "text": "Куплю юсдт",
+    "expected": "SCAM"
+  },
+  {
+    "name": "trusted_offer",
+    "text": "Я проверенный обменник, меняю USDT на франки при встрече",
+    "expected": "SCAM"
+  },
+  {
+    "name": "no_profit",
+    "text": "Куплю ваши USDT по курсу, без заработка и инвестиций",
+    "expected": "SCAM"
+  },
+  {
+    "name": "english",
+    "text": "Selling USDT for cash in Zurich, DM me",
+    "expected": "SCAM"
+  },
+  {
+    "name": "uk_exchange",
+    "text": "Обміняю криптовалюту на готівку, пишіть у приват",
+    "expected": "SCAM"
+  },
+  {
+    "name": "what",
+    "text": "Что такое USDT?",
+    "expected": "OK"
+  },
+  {
+    "name": "news",
+    "text": "Почему сегодня упал биткоин?",
+    "expected": "OK"
+  },
+  {
+    "name": "how",
+    "text": "Как купить USDT на бирже? Хочу понять порядок действий.",
+    "expected": "OK"
+  },
+  {
+    "name": "where",
+    "text": "На каких биржах можно купить USDT в Швейцарии?",
+    "expected": "OK"
+  },
+  {
+    "name": "fees",
+    "text": "Какая комиссия за перевод USDT в сети TRC20?",
+    "expected": "OK"
+  },
+  {
+    "name": "safety",
+    "text": "Как безопасно хранить ETH?",
+    "expected": "OK"
+  },
+  {
+    "name": "experience",
+    "text": "Вчера купил USDT на бирже, комиссия оказалась высокой.",
+    "expected": "OK"
+  },
+  {
+    "name": "intent",
+    "text": "Думаю купить немного биткоина в следующем году. Какие риски стоит изучить?",
+    "expected": "OK"
+  },
+  {
+    "name": "warning",
+    "text": "Осторожно, мошенники пишут «Куплю у вас USDT». Не переводите им ничего!",
+    "expected": "OK"
+  },
+  {
+    "name": "quote_question",
+    "text": "Мне написали «Продам тезер». Как проверить, не мошенник ли это?",
+    "expected": "OK"
+  },
+  {
+    "name": "criticism",
+    "text": "Не размещайте здесь объявления «Куплю USDT» и «Продам BTC».",
+    "expected": "OK"
+  },
+  {
+    "name": "lost",
+    "text": "Перевёл мошенникам USDT. Что теперь делать?",
+    "expected": "OK"
+  },
+  {
+    "name": "report",
+    "text": "В новостях сообщили, что компания продала часть биткоинов.",
+    "expected": "OK"
+  },
+  {
+    "name": "comparison",
+    "text": "Чем USDT отличается от USDC?",
+    "expected": "OK"
+  },
+  {
+    "name": "no_offer",
+    "text": "Я не покупаю и не продаю криптовалюту, просто изучаю блокчейн.",
+    "expected": "OK"
+  },
+  {
+    "name": "uk_discussion",
+    "text": "Що таке тезер і які ризики зберігання USDT?",
+    "expected": "OK"
+  },
+  {
+    "name": "english_discussion",
+    "text": "How do crypto exchanges work and what fees do they charge?",
+    "expected": "OK"
+  },
+  {
+    "name": "cash",
+    "text": "Как обменять евро на франки в банке?",
+    "expected": "OK"
+  },
+  {
+    "name": "p2p_question",
+    "text": "Как работает P2P-обмен криптовалюты и чем он опасен?",
+    "expected": "OK"
+  }
+]
