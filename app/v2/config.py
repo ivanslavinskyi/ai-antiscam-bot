@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = Field(default=20, ge=1, le=45)
     global_daily_budget_usd: float | None = Field(default=None, gt=0)
     max_input_chars: int = Field(default=16000, ge=1000, le=100000)
-    max_input_tokens: int = Field(default=8000, ge=1000, le=30000)
+    # Conservative UTF-8 byte-based token ceiling, not measured provider tokens.
+    # 16,000 Unicode characters can require 64,000 bytes plus schema overhead.
+    # Keep explicit lower operator limits working; never silently truncate input.
+    max_input_tokens: int = Field(default=65536, ge=1000, le=131072)
     completion_tokens: int = Field(default=512, ge=128, le=2048)
     recovery_mode: bool = False
     log_level: str = "INFO"

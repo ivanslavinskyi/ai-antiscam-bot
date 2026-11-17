@@ -9,6 +9,7 @@ from app.v2 import tables as t
 from app.v2.content import extract, normalize
 from app.v2.domain import Policy, now
 from app.v2.llm import CheckError, RetryLater, PROMPT_VERSION
+from app.v2.message_context import MAX_CONTEXT_TEXT
 from app.v2.queue import enqueue, emit
 from app.v2.controls import flags
 from app.v2.state import (
@@ -445,7 +446,7 @@ class Pipeline:
         )
         if (
             not full
-            or len(full) > 2000
+            or len(full) > MAX_CONTEXT_TEXT
             or unread
             or (quote and quote not in full)
             or len(links) > 10

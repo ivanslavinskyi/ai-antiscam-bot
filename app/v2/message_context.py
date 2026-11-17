@@ -1,5 +1,7 @@
 """Bounded, attributed reply context. Never fetch external chats or URLs."""
 
+MAX_CONTEXT_TEXT = 4096
+
 
 def text_links(text, entities):
     raw = text.encode("utf-16-le")
@@ -69,7 +71,7 @@ def reply_context(message):
         else {}
     )
     truncated = (
-        len(full) > 2000
+        len(full) > MAX_CONTEXT_TEXT
         or len(quoted) > 1000
         or len(links) > 10
         or any(len(x) > 1000 for x in links)
@@ -79,7 +81,7 @@ def reply_context(message):
     return {
         "kind": "external_reply" if external else "reply" if reply else "quote",
         "source": source,
-        "text": full[:2000],
+        "text": full[:MAX_CONTEXT_TEXT],
         "quote": quoted[:1000],
         "links": [x[:1000] for x in links[:10]],
         "coverage": "full"

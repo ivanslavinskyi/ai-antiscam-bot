@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.v2.config import Settings
-from app.v2.llm import Classifier, CheckError, RetryLater, cost
+from app.v2.llm import Classifier, CheckError, RetryLater, cost, input_bounds, request_body
 from tools.evaluate_models import metrics, wilson
 
 
@@ -193,3 +193,75 @@ def test_legacy_model_cost_is_unchanged():
         assert cost(
             "gpt-4o-mini", 1000, 100, cache_write_tokens=writes
         ) == pytest.approx(0.00021)
+
+
+@pytest.mark.parametrize("character", ["я", "界", "😀"])
+async def test_full_unicode_publication_and_context_reach_provider_intact(character):
+    content = {
+        "own_publication": [character * 4096 + " END_OF_PUBLICATION"],
+        "community_context": "Описание сообщества. " * 95,
+        "publication_context": [{"reply": {"text": "Цитата. " * 512}}],
+        "links": ["https://example.org/fixture"],
+    }
+    budget = RecordingBudget()
+    calls = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        assert json.loads(body["messages"][1]["content"]) == content
+        calls.append(body)
+        return httpx.Response(200, json={
+            "usage": {"prompt_tokens": 5000, "completion_tokens": 40},
+            "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({
+                "label": "OK", "category": "other", "confidence": 0.95,
+                "reason": "fixture",
+            })}}],
+        })
+
+    settings = Settings(_env_file=None, db_url="postgresql://unused",
+                        openai_api_key="fixture", openai_model="gpt-6-luna")
+    classifier = Classifier(settings, budget, httpx.AsyncClient(
+        transport=httpx.MockTransport(respond)))
+    try:
+        verdict, meta = await classifier.classify(1, "long", content)
+    finally:
+        await classifier.close()
+    assert len(calls) == 1 and verdict.label == "OK"
+    chars, upper = input_bounds(calls[0])
+    assert chars <= settings.max_input_chars and 8000 < upper <= settings.max_input_tokens
+    assert budget.reservations[0][2] == cost("gpt-6-luna", upper, 512)
+    assert budget.settlements == [("long", meta["cost_usd"])]
+    assert meta["cost_usd"] < budget.reservations[0][2]
+
+
+@pytest.mark.parametrize("limits,content", [
+    ({}, {"own_publication": ["x" * 16000]}),
+    ({"max_input_tokens": 8000}, {"own_publication": ["я" * 4096]}),
+    ({"max_input_chars": 1000}, {"own_publication": ["hello"]}),
+])
+async def test_oversize_or_explicit_lower_limits_reject_without_call_or_reservation(limits, content):
+    def unexpected(request):
+        pytest.fail("Oversized request must not call the provider")
+
+    budget = RecordingBudget()
+    classifier = Classifier(Settings(_env_file=None, db_url="postgresql://unused",
+        openai_api_key="fixture", **limits), budget,
+        httpx.AsyncClient(transport=httpx.MockTransport(unexpected)))
+    try:
+        with pytest.raises(CheckError, match="^input_limit$"):
+            await classifier.classify(1, "oversize", content)
+    finally:
+        await classifier.close()
+    assert budget.reservations == budget.settlements == []
+
+
+def test_default_byte_ceiling_covers_full_character_budget_including_schema():
+    settings = Settings(_env_file=None, db_url="postgresql://unused")
+    body = request_body("gpt-6-luna", {})
+    # Worst-case UTF-8 text at the whole-message character limit.
+    body["messages"] = [{"role": "user", "content": ""}]
+    overhead = len(json.dumps(body["messages"], ensure_ascii=False))
+    body["messages"][0]["content"] = "😀" * (settings.max_input_chars - overhead)
+    chars, upper = input_bounds(body)
+    assert chars == settings.max_input_chars
+    assert upper <= settings.max_input_tokens

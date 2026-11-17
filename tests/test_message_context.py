@@ -93,7 +93,7 @@ def test_forward_is_own_publication_without_reassigning_author(origin):
 def test_truncated_or_unread_source_is_not_complete(kind):
     original = offer()
     if kind == "long_text":
-        original = message(text="x" * 2001)
+        original = message(text="x" * 4097)
     elif kind == "photo":
         original = message(
             text=None,
@@ -189,6 +189,26 @@ async def test_trusted_incomplete_reply_still_has_no_external_checks(db, bot):
     await check_all(db, pipeline)
     assert not classifier.calls and await counts(db, t.outbox) == 0
     bot.get_chat_member.assert_not_awaited()
+
+
+@pytest.mark.parametrize("stored", [False, True])
+async def test_full_length_reply_preserves_evidence_at_end(db, bot, stored):
+    text = "я" * 4056 + " END_OF_SOURCE: prohibited offer"
+    classifier = Classifier()
+    pipeline = Pipeline(db, bot, classifier, OCR())
+    original = message(77, text=text)
+    if stored:
+        await pipeline.ingest(original, 1)
+        await check_all(db, pipeline)
+        classifier.calls.clear()
+        reply = message(78, text="Thanks", external_reply=external(-1001, 77))
+    else:
+        reply = message(78, text="Thanks", reply_to_message=original)
+    await pipeline.ingest(reply, 2)
+    await check_all(db, pipeline)
+    assert len(classifier.calls) == 1
+    context = classifier.calls[0][2]["publication_context"][0]["reply"]
+    assert context["text"] == text and not context["incomplete"]
 
 
 @pytest.mark.parametrize("source_case", ["local", "other_group", "edited"])
